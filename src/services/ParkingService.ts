@@ -146,4 +146,23 @@ export class ParkingService {
   public getCurrentlyParkedVehicles(): Vehicle[] {
     return this.vehicles;
   }
+
+  public findVehicleByPlateNumber(plateNumber: string): Vehicle | undefined {
+    // First check in current vehicles
+    const currentVehicle = this.vehicles.find(vehicle => 
+      vehicle.plateNumber.toLowerCase() === plateNumber.toLowerCase()
+    );
+    
+    if (currentVehicle) {
+      return currentVehicle;
+    }
+
+    // If not found in current vehicles, check in vehicle history
+    // Sort by entry time to get the most recent record
+    const historicalVehicles = this.vehicleHistory
+      .filter(vehicle => vehicle.plateNumber.toLowerCase() === plateNumber.toLowerCase())
+      .sort((a, b) => new Date(b.entryTime).getTime() - new Date(a.entryTime).getTime());
+
+    return historicalVehicles[0]; // Return the most recent record
+  }
 }

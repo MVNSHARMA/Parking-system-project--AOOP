@@ -1,10 +1,11 @@
-import React, { useState } from 'react';
-import { useForm } from 'react-hook-form';
+import React, { useState, useEffect } from 'react';
+import { useForm, useWatch } from 'react-hook-form';
 import { motion, AnimatePresence } from 'framer-motion';
-import { X } from 'lucide-react';
-import { VehicleType } from '../types';
+import { X, Car, Clock, History } from 'lucide-react';
+import { VehicleType, Vehicle } from '../types';
 import { fadeInUp, scaleIn, buttonHover, buttonTap } from '../utils/animations';
 import toast from 'react-hot-toast';
+import { ParkingService } from '../services/ParkingService';
 
 interface RegistrationFormData {
   plateNumber: string;
@@ -18,8 +19,40 @@ interface VehicleRegistrationProps {
 }
 
 const VehicleRegistration: React.FC<VehicleRegistrationProps> = ({ onClose, onRegister }) => {
-  const { register, handleSubmit, formState: { errors }, reset } = useForm<RegistrationFormData>();
+  const parkingService = ParkingService.getInstance();
+  const { register, handleSubmit, formState: { errors }, reset, setValue, control } = useForm<RegistrationFormData>();
   const [error, setError] = useState<string | null>(null);
+  const [foundVehicle, setFoundVehicle] = useState<Vehicle | null>(null);
+  const plateNumber = useWatch({ control, name: 'plateNumber' });
+
+  // Watch for plate number changes and auto-fill details
+  useEffect(() => {
+    if (plateNumber && plateNumber.length >= 6) { // Wait until plate number is partially entered
+      const existingVehicle = parkingService.findVehicleByPlateNumber(plateNumber);
+      if (existingVehicle) {
+        setFoundVehicle(existingVehicle);
+        setValue('ownerName', existingVehicle.ownerName);
+        setValue('vehicleType', existingVehicle.vehicleType);
+        
+        const isCurrentlyParked = !existingVehicle.exitTime;
+        toast.success(
+          <div className="flex items-center gap-2">
+            {isCurrentlyParked ? <Car size={20} /> : <History size={20} />}
+            <span>
+              {isCurrentlyParked 
+                ? 'Vehicle currently parked! Details auto-filled.' 
+                : 'Previous vehicle found! Details auto-filled.'}
+            </span>
+          </div>,
+          {
+            duration: 3000,
+          }
+        );
+      } else {
+        setFoundVehicle(null);
+      }
+    }
+  }, [plateNumber, setValue]);
 
   const onSubmit = async (data: RegistrationFormData) => {
     try {
@@ -64,6 +97,31 @@ const VehicleRegistration: React.FC<VehicleRegistrationProps> = ({ onClose, onRe
             className="mb-4 p-3 bg-red-100 text-red-700 rounded-lg"
           >
             {error}
+          </motion.div>
+        )}
+
+        {foundVehicle && (
+          <motion.div
+            initial={{ opacity: 0, y: -10 }}
+            animate={{ opacity: 1, y: 0 }}
+            className="mb-4 p-3 bg-blue-50 text-blue-700 rounded-lg"
+          >
+            <div className="flex items-center gap-2 mb-2">
+              {!foundVehicle.exitTime ? <Car size={20} /> : <History size={20} />}
+              <span className="font-semibold">
+                {!foundVehicle.exitTime ? 'Currently Parked Vehicle' : 'Previous Vehicle Found'}
+              </span>
+            </div>
+            <div className="text-sm">
+              <p>Owner: {foundVehicle.ownerName}</p>
+              <p>Type: {foundVehicle.vehicleType}</p>
+              {foundVehicle.exitTime && (
+                <p className="flex items-center gap-1">
+                  <Clock size={14} />
+                  Last parked: {new Date(foundVehicle.entryTime).toLocaleString()}
+                </p>
+              )}
+            </div>
           </motion.div>
         )}
 
